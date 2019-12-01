@@ -52,7 +52,7 @@ class Hydralisk(sc2.BotAI):
                 await self.build(SPAWNINGPOOL, near=hq)
 
         if self.units(SPAWNINGPOOL).ready.exists:
-            if not self.units(LAIR).exists and hq.noqueue:
+            if not self.units(LAIR).exists and hq.is_idle:
                 if self.can_afford(LAIR):
                     await self.do(hq.build(LAIR))
 
@@ -80,7 +80,7 @@ class Hydralisk(sc2.BotAI):
                     await self.do(w.random.gather(a))
 
         if self.units(SPAWNINGPOOL).ready.exists:
-            if not self.units(QUEEN).exists and hq.is_ready and hq.noqueue:
+            if not self.units(QUEEN).exists and hq.is_ready and hq.is_idle:
                 if self.can_afford(QUEEN):
                     await self.do(hq.train(QUEEN))
 

@@ -3,6 +3,7 @@
 
 import enum
 
+
 class UpgradeId(enum.Enum):
     NULL = 0
     CARRIERLAUNCHSPEEDUPGRADE = 1
@@ -300,6 +301,17 @@ class UpgradeId(enum.Enum):
     DIGGINGCLAWS = 293
     CARRIERCARRIERCAPACITY = 294
     CARRIERLEASHRANGEUPGRADE = 295
+    ENHANCEDSHOCKWAVES = 296
+    MICROBIALSHROUD = 297
+    SUNDERINGIMPACT = 298
+    AMPLIFIEDSHIELDING = 299
+    PSIONICAMPLIFIERS = 300
+    SECRETEDCOATING = 301
+
+
+    def __repr__(self):
+        return f"UpgradeId.{self.name}"
+
 
 for item in UpgradeId:
     assert not item.name in globals()

@@ -1,5 +1,5 @@
 # For live version
-FROM burnysc2/python-sc2-docker
+FROM burnysc2/python-sc2-docker:1.1
 
 # Copy files from the current commit (the python-sc2 folder) to root
 ADD . /root/python-sc2

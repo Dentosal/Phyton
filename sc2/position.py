@@ -3,104 +3,80 @@ import math
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple, Union  # for mypy type checking
 
-FLOAT_DIGITS = 8
-EPSILON = 10 ** (-FLOAT_DIGITS)
+EPSILON = 10 ** -8
 
 
 def _sign(num):
-    if num == 0:
-        return 0
-    return 1 if num > 0 else -1
+    return math.copysign(1, num)
 
 
 class Pointlike(tuple):
     @property
-    def rounded(self) -> "Pointlike":
-        return self.__class__(round(q) for q in self)
-
-    @property
     def position(self) -> "Pointlike":
         return self
 
-    def distance_to(self, p: Union["Unit", "Point2", "Point3"]) -> Union[int, float]:
-        p = p.position
-        assert isinstance(p, Pointlike)
-        if self == p:
-            return 0
-        return (sum(self.__class__((b - a) ** 2 for a, b in itertools.zip_longest(self, p, fillvalue=0)))) ** 0.5
+    def distance_to(self, target: Union["Unit", "Point2"]) -> float:
+        """Calculate a single distance from a point or unit to another point or unit"""
+        p = target.position
+        return math.hypot(self[0] - p[0], self[1] - p[1])
 
-    def distance_to_point2(self, p2: "Point2") -> Union[int, float]:
-        """ Same as the function above, but should be 3-4 times faster because of the dropped asserts and conversions and because it doesnt use a loop (itertools or zip). """
-        return ((self[0] - p2[0]) ** 2 + (self[1] - p2[1]) ** 2) ** 0.5
+    def distance_to_point2(self, p: "Point2") -> Union[int, float]:
+        """ Same as the function above, but should be a bit faster because of the dropped asserts
+        and conversion. """
+        return math.hypot(self[0] - p[0], self[1] - p[1])
 
     def _distance_squared(self, p2: "Point2") -> Union[int, float]:
-        """ Function used to not take the square root as the distances will stay proportionally the same. This is to speed up the sorting process. """
+        """ Function used to not take the square root as the distances will stay proportionally the same.
+        This is to speed up the sorting process. """
         return (self[0] - p2[0]) ** 2 + (self[1] - p2[1]) ** 2
 
+    def is_closer_than(self, distance: Union[int, float], p: Union["Unit", "Point2"]) -> bool:
+        """ Check if another point (or unit) is closer than the given distance. """
+        p = p.position
+        return self.distance_to_point2(p) < distance
+
+    def is_further_than(self, distance: Union[int, float], p: Union["Unit", "Point2"]) -> bool:
+        """ Check if another point (or unit) is further than the given distance. """
+        p = p.position
+        return self.distance_to_point2(p) > distance
+
     def sort_by_distance(self, ps: Union["Units", List["Point2"]]) -> List["Point2"]:
-        """ This returns the target points sorted as list. You should not pass a set or dict since those are not sortable.
+        """ This returns the target points sorted as list.
+        You should not pass a set or dict since those are not sortable.
         If you want to sort your units towards a point, use 'units.sorted_by_distance_to(point)' instead. """
-        if len(ps) == 1:
-            return ps[0]
-        # if ps and all(isinstance(p, Point2) for p in ps):
-        #     return sorted(ps, key=lambda p: self._distance_squared(p))
-        return sorted(ps, key=lambda p: self._distance_squared(p.position))
+        return sorted(ps, key=lambda p: self.distance_to_point2(p.position))
 
     def closest(self, ps: Union["Units", List["Point2"], Set["Point2"]]) -> Union["Unit", "Point2"]:
         """ This function assumes the 2d distance is meant """
-        assert ps
-        if len(ps) == 1:
-            return ps[0]
-        closest_distance_squared = math.inf
-        for p2 in ps:
-            p2pos = p2
-            if not isinstance(p2pos, Point2):
-                p2pos = p2.position
-            distance = (self[0] - p2pos[0]) ** 2 + (self[1] - p2pos[1]) ** 2
-            if distance < closest_distance_squared:
-                closest_distance_squared = distance
-                closest_element = p2
-        return closest_element
+        assert ps, f"ps is empty"
+        return min(ps, key=lambda p: self.distance_to(p))
 
     def distance_to_closest(self, ps: Union["Units", List["Point2"], Set["Point2"]]) -> Union[int, float]:
         """ This function assumes the 2d distance is meant """
-        assert ps
-        closest_distance_squared = math.inf
+        assert ps, f"ps is empty"
+        closest_distance = math.inf
         for p2 in ps:
-            if not isinstance(p2, Point2):
-                p2 = p2.position
-            distance = (self[0] - p2[0]) ** 2 + (self[1] - p2[1]) ** 2
-            if distance < closest_distance_squared:
-                closest_distance_squared = distance
-        return closest_distance_squared ** 0.5
+            p2 = p2.position
+            distance = self.distance_to(p2)
+            if distance <= closest_distance:
+                closest_distance = distance
+        return closest_distance
 
     def furthest(self, ps: Union["Units", List["Point2"], Set["Point2"]]) -> Union["Unit", "Pointlike"]:
         """ This function assumes the 2d distance is meant """
-        assert ps
-        if len(ps) == 1:
-            return ps[0]
-        furthest_distance_squared = -math.inf
-        for p2 in ps:
-            p2pos = p2
-            if not isinstance(p2pos, Point2):
-                p2pos = p2.position
-            distance = (self[0] - p2pos[0]) ** 2 + (self[1] - p2pos[1]) ** 2
-            if furthest_distance_squared < distance:
-                furthest_distance_squared = distance
-                furthest_element = p2
-        return furthest_element
+        assert ps, f"ps is empty"
+        return max(ps, key=lambda p: self.distance_to(p))
 
     def distance_to_furthest(self, ps: Union["Units", List["Point2"], Set["Point2"]]) -> Union[int, float]:
         """ This function assumes the 2d distance is meant """
-        assert ps
-        furthest_distance_squared = -math.inf
+        assert ps, f"ps is empty"
+        furthest_distance = -math.inf
         for p2 in ps:
-            if not isinstance(p2, Point2):
-                p2 = p2.position
-            distance = (self[0] - p2[0]) ** 2 + (self[1] - p2[1]) ** 2
-            if furthest_distance_squared < distance:
-                furthest_distance_squared = distance
-        return furthest_distance_squared ** 0.5
+            p2 = p2.position
+            distance = self.distance_to(p2)
+            if distance >= furthest_distance:
+                furthest_distance = distance
+        return furthest_distance
 
     def offset(self, p) -> "Pointlike":
         return self.__class__(a + b for a, b in itertools.zip_longest(self, p[: len(self)], fillvalue=0))
@@ -125,18 +101,23 @@ class Pointlike(tuple):
         )
 
     def __eq__(self, other):
-        if not isinstance(other, tuple):
+        try:
+            return all(abs(a - b) <= EPSILON for a, b in itertools.zip_longest(self, other, fillvalue=0))
+        except:
             return False
-        return all(abs(a - b) < EPSILON for a, b in itertools.zip_longest(self, other, fillvalue=0))
 
     def __hash__(self):
-        return hash(tuple(int(c * FLOAT_DIGITS) for c in self))
+        return hash(tuple(self))
 
 
 class Point2(Pointlike):
     @classmethod
     def from_proto(cls, data):
         return cls((data.x, data.y))
+
+    @property
+    def rounded(self) -> "Point2":
+        return Point2((math.floor(self[0]), math.floor(self[1])))
 
     @property
     def x(self) -> Union[int, float]:
@@ -153,6 +134,9 @@ class Point2(Pointlike):
     @property
     def to3(self) -> "Point3":
         return Point3((*self, 0))
+
+    def offset(self, off):
+        return Point2((self[0] + off[0], self[1] + off[1]))
 
     def distance2_to(self, other: "Point2"):
         """Squared distance to a point."""
@@ -241,9 +225,10 @@ class Point2(Pointlike):
         return self.x != 0 or self.y != 0
 
     def __mul__(self, other: Union[int, float, "Point2"]) -> "Point2":
-        if isinstance(other, self.__class__):
+        try:
             return self.__class__((self.x * other.x, self.y * other.y))
-        return self.__class__((self.x * other, self.y * other))
+        except:
+            return self.__class__((self.x * other, self.y * other))
 
     def __rmul__(self, other: Union[int, float, "Point2"]) -> "Point2":
         return self.__mul__(other)
@@ -253,8 +238,8 @@ class Point2(Pointlike):
             return self.__class__((self.x / other.x, self.y / other.y))
         return self.__class__((self.x / other, self.y / other))
 
-    def is_same_as(self, other: "Point2", dist=0.1) -> bool:
-        return self._distance_squared(other) <= dist ** 2
+    def is_same_as(self, other: "Point2", dist=0.001) -> bool:
+        return self.distance_to_point2(other) <= dist
 
     def direction_vector(self, other: "Point2") -> "Point2":
         """ Converts a vector to a direction that can face vertically, horizontally or diagonal or be zero, e.g. (0, 0), (1, -1), (1, 0) """
@@ -276,6 +261,10 @@ class Point3(Point2):
     @classmethod
     def from_proto(cls, data):
         return cls((data.x, data.y, data.z))
+
+    @property
+    def rounded(self) -> "Point3":
+        return Point3((math.floor(self[0]), math.floor(self[1]), math.floor(self[2])))
 
     @property
     def z(self) -> Union[int, float]:
@@ -320,7 +309,7 @@ class Rect(tuple):
 
     @property
     def size(self) -> Size:
-        return Size(self[2], self[3])
+        return Size((self[2], self[3]))
 
     @property
     def center(self) -> Point2:

@@ -1,19 +1,17 @@
 from bisect import bisect_left
 from functools import lru_cache, reduce
-from typing import List, Dict, Set, Tuple, Any, Optional, Union # mypy type checking
-
-from .data import Attribute, Race
-from .unit_command import UnitCommand
-
-from .ids.unit_typeid import UnitTypeId
-from .ids.ability_id import AbilityId
+from typing import Any, Dict, List, Optional, Set, Tuple, Union  # mypy type checking
 
 from .constants import ZERGLING
+from .data import Attribute, Race
+from .ids.ability_id import AbilityId
+from .ids.unit_typeid import UnitTypeId
+from .unit_command import UnitCommand
 
-FREE_MORPH_ABILITY_CATEGORIES = [
-    "Lower", "Raise", # SUPPLYDEPOT
-    "Land",  "Lift",  # Flying buildings
-]
+# Set of parts of names of abilities that have no cost
+# E.g every ability that has 'Hold' in its name is free
+# TODO move to constants, add more?
+FREE_ABILITIES = {"Lower", "Raise", "Land", "Lift", "Hold", "Harvest"}
 
 def split_camel_case(text) -> list:
     """Splits words from CamelCase text."""
@@ -72,11 +70,7 @@ class GameData:
         return Cost(0, 0)
 
 class AbilityData:
-    ability_ids: List[int] = []  # sorted list
-    for ability_id in AbilityId:  # 1000 items Enum is slow
-        ability_ids.append(ability_id.value)
-    ability_ids.remove(0)
-    ability_ids.sort()
+    ability_ids: List[int] = [ability_id.value for ability_id in AbilityId][1:]  # sorted list
 
     @classmethod
     def id_exists(cls, ability_id):
@@ -120,7 +114,7 @@ class AbilityData:
     def is_free_morph(self) -> bool:
         parts = split_camel_case(self._proto.link_name)
         for p in parts:
-            if p in FREE_MORPH_ABILITY_CATEGORIES:
+            if p in FREE_ABILITIES:
                 return True
         return False
 
@@ -130,6 +124,12 @@ class AbilityData:
 
 class UnitTypeData:
     def __init__(self, game_data, proto):
+        # The ability_id for lurkers is
+        # LURKERASPECTMPFROMHYDRALISKBURROWED_LURKERMPFROMHYDRALISKBURROWED
+        # instead of the correct MORPH_LURKER.
+        if proto.unit_id == UnitTypeId.LURKERMP.value:
+            proto.ability_id = AbilityId.MORPH_LURKER.value
+
         self._game_data = game_data
         self._proto = proto
 
@@ -184,17 +184,14 @@ class UnitTypeData:
 
     @property
     def tech_alias(self) -> Optional[List[UnitTypeId]]:
-        """ Building tech equality, e.g. OrbitalCommand is the same as CommandCenter """
-        """ Building tech equality, e.g. Hive is the same as Lair and Hatchery """
-        return_list = []
-        for tech_alias in self._proto.tech_alias:
-            if tech_alias in self._game_data.units:
-                return_list.append(UnitTypeId(tech_alias))
-        """ For Hive, this returns [UnitTypeId.Hatchery, UnitTypeId.Lair] """
-        """ For SCV, this returns None """
-        if return_list:
-            return return_list
-        return None
+        """ Building tech equality, e.g. OrbitalCommand is the same as CommandCenter
+        Building tech equality, e.g. Hive is the same as Lair and Hatchery
+        For Hive, this returns [UnitTypeId.Hatchery, UnitTypeId.Lair]
+        For SCV, this returns None """
+        return_list = [
+            UnitTypeId(tech_alias) for tech_alias in self._proto.tech_alias if tech_alias in self._game_data.units
+        ]
+        return return_list if return_list else None
 
     @property
     def unit_alias(self) -> Optional[UnitTypeId]:
@@ -240,8 +237,12 @@ class UnitTypeData:
         if self.tech_alias is None or self.tech_alias[0] in {UnitTypeId.TECHLAB, UnitTypeId.REACTOR}:
             return None
         # Morphing a HIVE would have HATCHERY and LAIR in the tech alias - now subtract HIVE cost from LAIR cost instead of from HATCHERY cost
-        tech_alias_cost_minerals = max([self._game_data.units[tech_alias.value].cost.minerals for tech_alias in self.tech_alias])
-        tech_alias_cost_vespene = max([self._game_data.units[tech_alias.value].cost.vespene for tech_alias in self.tech_alias])
+        tech_alias_cost_minerals = max(
+            self._game_data.units[tech_alias.value].cost.minerals for tech_alias in self.tech_alias
+        )
+        tech_alias_cost_vespene = max(
+            self._game_data.units[tech_alias.value].cost.vespene for tech_alias in self.tech_alias
+        )
         return Cost(
                 self._proto.mineral_cost - tech_alias_cost_minerals,
                 self._proto.vespene_cost - tech_alias_cost_vespene,
@@ -271,11 +272,8 @@ class UpgradeData:
 
     @property
     def cost(self) -> "Cost":
-        return Cost(
-            self._proto.mineral_cost,
-            self._proto.vespene_cost,
-            self._proto.research_time
-        )
+        return Cost(self._proto.mineral_cost, self._proto.vespene_cost, self._proto.research_time)
+
 
 class Cost:
     def __init__(self, minerals, vespene, time=None):
@@ -291,3 +289,19 @@ class Cost:
 
     def __ne__(self, other) -> bool:
         return self.minerals != other.minerals or self.vespene != other.vespene
+
+    def __bool__(self) -> bool:
+        return self.minerals != 0 or self.vespene != 0
+
+    def __add__(self, other) -> "Cost":
+        if not other:
+            return self
+        if not self:
+            return other
+        if self.time is None:
+            time = other.time
+        elif other.time is None:
+            time = self.time
+        else:
+            time = self.time + other.time
+        return self.__class__(self.minerals + other.minerals, self.vespene + other.vespene, time=time)

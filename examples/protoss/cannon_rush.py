@@ -17,7 +17,7 @@ class CannonRushBot(sc2.BotAI):
         else:
             nexus = self.units(NEXUS).first
 
-        if self.workers.amount < 16 and nexus.noqueue:
+        if self.workers.amount < 16 and nexus.is_idle:
             if self.can_afford(PROBE):
                 await self.do(nexus.train(PROBE))
 

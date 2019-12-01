@@ -12,7 +12,7 @@ class TerranBot(sc2.BotAI):
         await self.expand()
 
     async def build_workers(self):
-        for cc in self.units(UnitTypeId.COMMANDCENTER).ready.noqueue:
+        for cc in self.units(UnitTypeId.COMMANDCENTER).ready.idle:
             if self.can_afford(UnitTypeId.SCV):
                 await self.do(cc.train(UnitTypeId.SCV))
 

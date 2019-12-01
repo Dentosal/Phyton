@@ -42,12 +42,12 @@ class ProxyRaxBot(sc2.BotAI):
                 for unit in forces.idle:
                     await self.do(unit.attack(target))
 
-        if self.can_afford(SCV) and self.workers.amount < 22 and cc.noqueue:
+        if self.can_afford(SCV) and self.workers.amount < 22 and cc.is_idle:
             await self.do(cc.train(SCV))
 
         if self.units(FUSIONCORE).exists and self.can_afford(BATTLECRUISER):
             for sp in self.units(STARPORT):
-                if sp.has_add_on and sp.noqueue:
+                if sp.has_add_on and sp.is_idle:
                     if not self.can_afford(BATTLECRUISER):
                         break
                     await self.do(sp.train(BATTLECRUISER))

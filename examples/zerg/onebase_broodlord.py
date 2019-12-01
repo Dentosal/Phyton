@@ -57,7 +57,7 @@ class BroodlordBot(sc2.BotAI):
                 await self.build(SPAWNINGPOOL, near=hq)
 
         if self.units(SPAWNINGPOOL).ready.exists:
-            if not self.units(LAIR).exists and not self.units(HIVE).exists and hq.noqueue:
+            if not self.units(LAIR).exists and not self.units(HIVE).exists and hq.is_idle:
                 if self.can_afford(LAIR):
                     await self.do(hq.build(LAIR))
 
@@ -70,7 +70,7 @@ class BroodlordBot(sc2.BotAI):
                 if self.can_afford(SPIRE):
                     await self.build(SPIRE, near=hq)
 
-        if self.units(INFESTATIONPIT).ready.exists and not self.units(HIVE).exists and hq.noqueue:
+        if self.units(INFESTATIONPIT).ready.exists and not self.units(HIVE).exists and hq.is_idle:
             if self.can_afford(HIVE):
                 await self.do(hq.build(HIVE))
 
@@ -78,7 +78,7 @@ class BroodlordBot(sc2.BotAI):
             spires = self.units(SPIRE).ready
             if spires.exists:
                 spire = spires.random
-                if self.can_afford(GREATERSPIRE) and spire.noqueue:
+                if self.can_afford(GREATERSPIRE) and spire.is_idle:
                     await self.do(spire.build(GREATERSPIRE))
 
         if self.units(EXTRACTOR).amount < 2 and not self.already_pending(EXTRACTOR):
@@ -100,7 +100,7 @@ class BroodlordBot(sc2.BotAI):
                     await self.do(w.random.gather(a))
 
         if self.units(SPAWNINGPOOL).ready.exists:
-            if not self.units(QUEEN).exists and hq.is_ready and hq.noqueue:
+            if not self.units(QUEEN).exists and hq.is_ready and hq.is_idle:
                 if self.can_afford(QUEEN):
                     await self.do(hq.train(QUEEN))
 

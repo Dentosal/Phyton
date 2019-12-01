@@ -43,7 +43,7 @@ class WarpGateBot(sc2.BotAI):
                 await self.build(PYLON, near=nexus)
             return
 
-        if self.workers.amount < self.units(NEXUS).amount*22 and nexus.noqueue:
+        if self.workers.amount < self.units(NEXUS).amount*22 and nexus.is_idle:
             if self.can_afford(PROBE):
                 await self.do(nexus.train(PROBE))
 

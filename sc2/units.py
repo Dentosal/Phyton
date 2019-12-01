@@ -1,21 +1,47 @@
 import random
+import warnings
+from itertools import chain
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
-from .unit import Unit
 from .ids.unit_typeid import UnitTypeId
 from .position import Point2, Point3
-from typing import List, Dict, Set, Tuple, Any, Optional, Union  # mypy type checking
+from .unit import Unit, UnitGameData
+
+warnings.simplefilter("once")
 
 
 class Units(list):
-    """A collection for units. Makes it easy to select units by selectors."""
+    """A collection of Unit objects. Makes it easy to select units by selectors."""
 
+    # TODO: You dont need to provide game_data any more.
+    # Add keyword argument 'game_data=None' to provide downwards
+    # compatibility for bots that use '__init__' or 'from_proto' functions.
     @classmethod
-    def from_proto(cls, units, game_data):
-        return cls((Unit(u, game_data) for u in units), game_data)
+    def from_proto(cls, units, game_data=None):  # game_data=None
+        if game_data:
+            warnings.warn(
+                "Keyword argument 'game_data' in Units classmethod 'from_proto' is deprecated.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            warnings.warn(
+                "You can safely remove it from your Units objects created by the classmethod.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return cls((Unit(u) for u in units))
 
-    def __init__(self, units, game_data):
+    def __init__(self, units, game_data=None):
+        if game_data:
+            warnings.warn(
+                "Keyword argument 'game_data' in Units function '__init__' is deprecated.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            warnings.warn(
+                "You can safely remove it from your Units objects initializations.", DeprecationWarning, stacklevel=2
+            )
         super().__init__(units)
-        self.game_data = game_data
 
     def __call__(self, *args, **kwargs):
         return UnitSelection(self, *args, **kwargs)
@@ -27,31 +53,18 @@ class Units(list):
         return self.subgroup(self)
 
     def __or__(self, other: "Units") -> "Units":
-        if self is None:
-            return other
-        if other is None:
-            return self
-        tags = {unit.tag for unit in self}
-        units = self + [unit for unit in other if unit.tag not in tags]
-        return Units(units, self.game_data)
+        return Units(
+            chain(
+                iter(self),
+                (other_unit for other_unit in other if other_unit.tag not in (self_unit.tag for self_unit in self)),
+            )
+        )
 
     def __and__(self, other: "Units") -> "Units":
-        if self is None:
-            return other
-        if other is None:
-            return self
-        tags = {unit.tag for unit in self}
-        units = [unit for unit in other if unit.tag in tags]
-        return Units(units, self.game_data)
+        return Units(other_unit for other_unit in other if other_unit.tag in (self_unit.tag for self_unit in self))
 
     def __sub__(self, other: "Units") -> "Units":
-        if self is None:
-            return Units([], self.game_data)
-        if other is None:
-            return self
-        tags = {unit.tag for unit in other}
-        units = [unit for unit in self if unit.tag not in tags]
-        return Units(units, self.game_data)
+        return Units(self_unit for self_unit in self if self_unit.tag not in (other_unit.tag for other_unit in other))
 
     def __hash__(self):
         return hash(unit.tag for unit in self)
@@ -85,9 +98,14 @@ class Units(list):
         assert self
         return self[0]
 
-    def take(self, n: int, require_all: bool = True) -> "Units":
-        assert (not require_all) or len(self) >= n
-        return self[:n]
+    # NOTE former argument 'require_all' is not needed any more
+    def take(self, n: int, require_all=None) -> "Units":
+        if require_all:
+            warnings.warn("Argument 'require_all' in function 'take' is deprecated", DeprecationWarning, stacklevel=2)
+        if n >= self.amount:
+            return self
+        else:
+            return self.subgroup(self[:n])
 
     @property
     def random(self) -> Unit:
@@ -95,17 +113,18 @@ class Units(list):
         return random.choice(self)
 
     def random_or(self, other: any) -> Unit:
-        if self.exists:
-            return random.choice(self)
-        else:
-            return other
+        return random.choice(self) if self.exists else other
 
-    def random_group_of(self, n):
-        # TODO allow n > amount with n = min(n,amount)?
-        assert 0 <= n <= self.amount
-        if n == 0:
-            return self.subgroup([])
-        elif self.amount == n:
+    # NOTE former argument 'require_all' is not needed any more
+    def random_group_of(self, n: int, require_all=None) -> "Units":
+        """ Returns self if n >= self.amount. """
+        if require_all:
+            warnings.warn(
+                "Argument 'require_all' in function 'random_group_of' is deprecated", DeprecationWarning, stacklevel=2
+            )
+        if n < 1:
+            return Units([])
+        elif n >= self.amount:
             return self
         else:
             return self.subgroup(random.sample(self, n))
@@ -116,24 +135,19 @@ class Units(list):
 
     def closest_distance_to(self, position: Union[Unit, Point2, Point3]) -> Union[int, float]:
         """ Returns the distance between the closest unit from this group to the target unit """
-        assert self.exists
-        if isinstance(position, Unit):
-            position = position.position
-        return position.distance_to_closest(
-            [u.position for u in self]
-        )  # Note: list comprehension creation is 0-5% faster than set comprehension
+        assert self, "Units object is empty"
+        position = position.position
+        return position.distance_to_closest(u.position for u in self)
 
     def furthest_distance_to(self, position: Union[Unit, Point2, Point3]) -> Union[int, float]:
         """ Returns the distance between the furthest unit from this group to the target unit """
-        assert self.exists
-        if isinstance(position, Unit):
-            position = position.position
-        return position.distance_to_furthest([u.position for u in self])
+        assert self, "Units object is empty"
+        position = position.position
+        return position.distance_to_furthest(u.position for u in self)
 
     def closest_to(self, position: Union[Unit, Point2, Point3]) -> Unit:
-        assert self.exists
-        if isinstance(position, Unit):
-            position = position.position
+        assert self, "Units object is empty"
+        position = position.position
         return position.closest(self)
 
     def furthest_to(self, position: Union[Unit, Point2, Point3]) -> Unit:
@@ -143,47 +157,35 @@ class Units(list):
         return position.furthest(self)
 
     def closer_than(self, distance: Union[int, float], position: Union[Unit, Point2, Point3]) -> "Units":
-        if isinstance(position, Unit):
-            position = position.position
-        distance_squared = distance ** 2
-        return self.filter(lambda unit: unit.position._distance_squared(position.to2) < distance_squared)
+        position = position.position
+        return self.filter(lambda unit: unit.distance_to(position.to2) < distance)
 
     def further_than(self, distance: Union[int, float], position: Union[Unit, Point2, Point3]) -> "Units":
-        if isinstance(position, Unit):
-            position = position.position
-        distance_squared = distance ** 2
-        return self.filter(lambda unit: unit.position._distance_squared(position.to2) > distance_squared)
+        position = position.position
+        return self.filter(lambda unit: unit.distance_to(position.to2) > distance)
 
     def subgroup(self, units):
-        return Units(list(units), self.game_data)
+        return Units(units)
 
     def filter(self, pred: callable) -> "Units":
         return self.subgroup(filter(pred, self))
 
     def sorted(self, keyfn: callable, reverse: bool = False) -> "Units":
-        if len(self) in {0, 1}:
-            return self
         return self.subgroup(sorted(self, key=keyfn, reverse=reverse))
 
     def sorted_by_distance_to(self, position: Union[Unit, Point2], reverse: bool = False) -> "Units":
         """ This function should be a bit faster than using units.sorted(keyfn=lambda u: u.distance_to(position)) """
-        if len(self) in [0, 1]:
-            return self
         position = position.position
-        return self.sorted(keyfn=lambda unit: unit.position._distance_squared(position), reverse=reverse)
+        return self.sorted(keyfn=lambda unit: unit.distance_to(position), reverse=reverse)
 
     def tags_in(self, other: Union[Set[int], List[int], Dict[int, Any]]) -> "Units":
         """ Filters all units that have their tags in the 'other' set/list/dict """
         # example: self.units(QUEEN).tags_in(self.queen_tags_assigned_to_do_injects)
-        if isinstance(other, list):
-            other = set(other)
         return self.filter(lambda unit: unit.tag in other)
 
     def tags_not_in(self, other: Union[Set[int], List[int], Dict[int, Any]]) -> "Units":
         """ Filters all units that have their tags not in the 'other' set/list/dict """
         # example: self.units(QUEEN).tags_not_in(self.queen_tags_assigned_to_do_injects)
-        if isinstance(other, list):
-            other = set(other)
         return self.filter(lambda unit: unit.tag not in other)
 
     def of_type(self, other: Union[UnitTypeId, Set[UnitTypeId], List[UnitTypeId], Dict[UnitTypeId, Any]]) -> "Units":
@@ -191,8 +193,6 @@ class Units(list):
         # example: self.units.of_type([ZERGLING, ROACH, HYDRALISK, BROODLORD])
         if isinstance(other, UnitTypeId):
             other = {other}
-        if isinstance(other, list):
-            other = set(other)
         return self.filter(lambda unit: unit.type_id in other)
 
     def exclude_type(
@@ -216,8 +216,9 @@ class Units(list):
         if isinstance(other, UnitTypeId):
             other = {other}
         tech_alias_types = set(other)
+        unit_data = UnitGameData._game_data.units
         for unitType in other:
-            tech_alias = self.game_data.units[unitType.value].tech_alias
+            tech_alias = unit_data[unitType.value].tech_alias
             if tech_alias:
                 for same in tech_alias:
                     tech_alias_types.add(same)
@@ -239,8 +240,9 @@ class Units(list):
         if isinstance(other, UnitTypeId):
             other = {other}
         unit_alias_types = set(other)
+        unit_data = UnitGameData._game_data.units
         for unitType in other:
-            unit_alias = self.game_data.units[unitType.value].unit_alias
+            unit_alias = unit_data[unitType.value].unit_alias
             if unit_alias:
                 unit_alias_types.add(unit_alias)
         return self.filter(
@@ -252,13 +254,9 @@ class Units(list):
     @property
     def center(self) -> Point2:
         """ Returns the central point of all units in this list """
-        assert self
-        pos = Point2(
-            (
-                sum([unit.position.x for unit in self]) / self.amount,
-                sum([unit.position.y for unit in self]) / self.amount,
-            )
-        )
+        assert self, f"Units object is empty"
+        amount = self.amount
+        pos = Point2((sum(unit.position.x for unit in self) / amount, sum(unit.position.y for unit in self) / amount))
         return pos
 
     @property
@@ -279,7 +277,8 @@ class Units(list):
 
     @property
     def noqueue(self) -> "Units":
-        return self.filter(lambda unit: unit.noqueue)
+        warnings.warn("noqueue will be removed soon, please use idle instead", DeprecationWarning, stacklevel=2)
+        return self.idle
 
     @property
     def idle(self) -> "Units":
@@ -338,24 +337,25 @@ class Units(list):
         return self.sorted(lambda unit: unit.is_idle, reverse=True)
 
     def prefer_close_to(self, p: Union[Unit, Point2, Point3]) -> "Units":
-        # TODO redundant?
+        warnings.warn(
+            "prefer_close_to will be removed soon, please use sorted_by_distance_to instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.sorted_by_distance_to(p)
 
 
 class UnitSelection(Units):
-    def __init__(self, parent, unit_type_id=None):
-        assert unit_type_id is None or isinstance(unit_type_id, (UnitTypeId, set))
-        if isinstance(unit_type_id, set):
-            assert all(isinstance(t, UnitTypeId) for t in unit_type_id)
-
-        self.unit_type_id = unit_type_id
-        super().__init__([u for u in parent if self.matches(u)], parent.game_data)
-
-    def matches(self, unit):
-        if self.unit_type_id is None:
-            # empty selector matches everything
-            return True
-        elif isinstance(self.unit_type_id, set):
-            return unit.type_id in self.unit_type_id
+    def __init__(self, parent, selection=None):
+        if isinstance(selection, (UnitTypeId)):
+            super().__init__(unit for unit in parent if unit.type_id == selection)
+        elif isinstance(selection, set):
+            assert all(isinstance(t, UnitTypeId) for t in selection), f"Not all ids in selection are of type UnitTypeId"
+            super().__init__(unit for unit in parent if unit.type_id in selection)
+        elif selection is None:
+            super().__init__(unit for unit in parent)
         else:
-            return self.unit_type_id == unit.type_id
+            assert isinstance(
+                selection, (UnitTypeId, set)
+            ), f"selection is not None or of type UnitTypeId or Set[UnitTypeId]"
+

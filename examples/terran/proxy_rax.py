@@ -24,7 +24,7 @@ class ProxyRaxBot(sc2.BotAI):
             cg = ControlGroup(self.units(MARINE).idle)
             self.attack_groups.add(cg)
 
-        if self.can_afford(SCV) and self.workers.amount < 16 and cc.noqueue:
+        if self.can_afford(SCV) and self.workers.amount < 16 and cc.is_idle:
             await self.do(cc.train(SCV))
 
         elif self.supply_left < (2 if self.units(BARRACKS).amount < 3 else 4):
@@ -36,7 +36,7 @@ class ProxyRaxBot(sc2.BotAI):
                 p = self.game_info.map_center.towards(self.enemy_start_locations[0], 25)
                 await self.build(BARRACKS, near=p)
 
-        for rax in self.units(BARRACKS).ready.noqueue:
+        for rax in self.units(BARRACKS).ready.idle:
             if not self.can_afford(MARINE):
                 break
             await self.do(rax.train(MARINE))

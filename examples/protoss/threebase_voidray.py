@@ -48,7 +48,7 @@ class ThreebaseVoidrayBot(sc2.BotAI):
                 await self.build(PYLON, near=nexus)
             return
 
-        if self.workers.amount < self.units(NEXUS).amount*15 and nexus.noqueue:
+        if self.workers.amount < self.units(NEXUS).amount*15 and nexus.is_idle:
             if self.can_afford(PROBE):
                 await self.do(nexus.train(PROBE))
 
@@ -89,7 +89,7 @@ class ThreebaseVoidrayBot(sc2.BotAI):
                 if self.can_afford(STARGATE):
                     await self.build(STARGATE, near=pylon)
 
-        for sg in self.units(STARGATE).ready.noqueue:
+        for sg in self.units(STARGATE).ready.idle:
             if self.can_afford(VOIDRAY):
                 await self.do(sg.train(VOIDRAY))
 

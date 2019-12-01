@@ -1,19 +1,64 @@
+
 sudo: required
-
 language: python
+services: docker
 
-services:
-  - docker
 
-before_install:
-  # Debugging
-  - echo Current path
-  - pwd
-  - echo Project dir contents
-  - ls
-  # Build docker image
-  - docker build -t test_image -f test/Dockerfile .
+jobs:
+  # Now, the build result will be determined as soon as all the required jobs finish, based on these results, while the rest of the allow_failures jobs continue to run.
+  fast_finish: true
 
-script:
-  # Run tests
-  - docker run test_image -c "python test/travis_test_script.py test/autotest_bot.py"
+  # Jobs that are allowed to fail
+  allow_failures:
+    - stage: test python 3.8
+
+  # Jobs that are being run
+  include:
+    - stage: test python 3.7
+      script:
+        # Pull docker image, this step could be skipped
+        - docker pull python:3.7-slim
+        # Create docker container called "app" from image "python:3.7"
+        - docker run -it -d --name app python:3.7-slim
+        # List contents of current folder
+        - ls
+        # Copy repository files and folders to docker container
+        - docker cp . app:/root/template
+        # List contents of container
+        - docker exec app ls /root/template
+        # Upgrade pipenv (and implicitly pip)
+        - docker exec app pip install --upgrade pipenv
+        # Create pipenv virtual environment and install dev packages for testing
+        # Command origins from here: https://stackoverflow.com/a/28037991/10882657
+        - docker exec -i app bash -c "cd /root/template && pipenv install --dev --python 3.7"
+        # Run tests
+        - docker exec -i app bash -c "cd /root/template && pipenv run pytest test/"
+        # Shut down and remove container
+        - docker rm -f app
+
+    - stage: test python 3.8
+      script:
+        # TODO: Change to normal python 3.8 version once 3.8 is released
+        - docker pull python:3.8-rc-slim
+        - docker run -it -d --name app python:3.8-rc-slim
+        - docker cp . app:/root/template
+        - docker exec app pip install --upgrade pipenv
+        - docker exec -i app bash -c "cd /root/template && pipenv --python python install --dev --python 3.8"
+        - docker exec -i app bash -c "cd /root/template && pipenv run pytest test/"
+        - docker rm -f app
+
+# Disabled until linux client is at version 4.8.5 or newer - issues with pixelmap that are working on the windows client
+#    - stage: run autotest bot
+#      script:
+#        # Debugging
+#        - echo Current path
+#        - pwd
+#        - echo Project dir contents
+#        - ls
+#        # Build the docker image
+#        - docker build -t test_image -f test/Dockerfile .
+#        # Run the docker image
+#        - docker run -it -d --name app test_image
+#        - docker exec -i app bash -c "python test/travis_test_script.py test/autotest_bot.py"
+#        # Shut down and remove container after finishing
+#        - docker rm -f app

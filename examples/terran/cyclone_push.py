@@ -42,7 +42,7 @@ class ProxyRaxBot(sc2.BotAI):
                 for unit in forces.idle:
                     await self.do(unit.attack(target))
 
-        if self.can_afford(SCV) and self.workers.amount < 22 and cc.noqueue:
+        if self.can_afford(SCV) and self.workers.amount < 22 and cc.is_idle:
             await self.do(cc.train(SCV))
 
         elif self.supply_left < 3:
@@ -74,7 +74,7 @@ class ProxyRaxBot(sc2.BotAI):
                         p = cc.position.towards_with_random_angle(self.game_info.map_center, 16)
                         await self.build(FACTORY, near=p)
 
-        for factory in self.units(FACTORY).ready.noqueue:
+        for factory in self.units(FACTORY).ready.idle:
             # Reactor allows us to build two at a time
             if self.can_afford(CYCLONE):
                 await self.do(factory.train(CYCLONE))

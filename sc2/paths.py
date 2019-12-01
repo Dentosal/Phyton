@@ -1,8 +1,9 @@
+import logging
 import os
-from pathlib import Path
 import platform
 import re
-import logging
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 BASEDIR = {
@@ -26,12 +27,7 @@ BINPATH = {
     "WineLinux": "SC2_x64.exe",
 }
 
-CWD = {
-    "Windows": "Support64",
-    "Darwin": None,
-    "Linux": None,
-    "WineLinux": "Support64",
-}
+CWD = {"Windows": "Support64", "Darwin": None, "Linux": None, "WineLinux": "Support64"}
 
 PF = os.environ.get("SC2PF", platform.system())
 
